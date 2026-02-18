@@ -16,7 +16,7 @@ import {
 } from "./types";
 import { SwarmAgent } from "./agent";
 import { startDashboard } from "../dashboard/server";
-import { initThinker, getTotalTokensUsed } from "./thinker";
+import { initThinker, getTotalTokensUsed, generateCollectiveReport } from "./thinker";
 import { initDatabase, closeDatabase, saveAgent, getRecentThoughts, getRecentDecisions, getAllRepos } from "./persistence";
 import { detectCollaborativeOpportunity } from "./decider";
 import { v4 as uuid } from "uuid";
@@ -84,58 +84,105 @@ function decayPheromones(channel: PheromoneChannel): void {
   channel.pheromones = channel.pheromones.filter((p) => p.strength > 0.05);
 }
 
-function synthesizeCollectiveMemory(
+async function synthesizeCollectiveMemory(
   agents: SwarmAgent[],
   channel: PheromoneChannel
-): CollectiveMemory | null {
+): Promise<CollectiveMemory | null> {
+  // With 3 agents, require at least 2 synced
   const syncedAgents = agents.filter((a) => a.state.synchronized);
-  if (syncedAgents.length < 3) return null;
+  if (syncedAgents.length < 2) return null;
 
+  // Only use pheromones with real analysis content — skip bare discovery stubs
+  const richPheromones = channel.pheromones.filter(
+    (p) => p.strength >= 0.3 && p.content.length > 40 && !p.content.startsWith("github:")
+  );
+  if (richPheromones.length < 2) return null;
+
+  // Group by domain to find most active topic
   const domainGroups = new Map<string, Pheromone[]>();
-  for (const p of channel.pheromones) {
-    if (p.strength < 0.3) continue;
+  for (const p of richPheromones) {
     const existing = domainGroups.get(p.domain) || [];
     existing.push(p);
     domainGroups.set(p.domain, existing);
   }
-
   let bestDomain = "";
   let bestCount = 0;
-  for (const [domain, pheromones] of domainGroups) {
-    if (pheromones.length > bestCount) {
-      bestDomain = domain;
-      bestCount = pheromones.length;
-    }
+  for (const [domain, ps] of domainGroups) {
+    if (ps.length > bestCount) { bestDomain = domain; bestCount = ps.length; }
   }
 
-  if (bestCount < 3) return null;
-
-  const domainPheromones = domainGroups.get(bestDomain)!;
-  const contributors = [
-    ...new Set(domainPheromones.map((p) => p.agentId)),
-  ];
-
+  const domainPheromones = domainGroups.get(bestDomain) || richPheromones;
+  const contributors = [...new Set(domainPheromones.map((p) => p.agentId))];
   if (contributors.length < 2) return null;
 
-  const synthesis = domainPheromones
+  // Derive topic
+  const repoMentions = domainPheromones
+    .map((p) => p.content.match(/Studied ([^\s:]+\/[^\s:]+)/)?.[1])
+    .filter(Boolean).slice(0, 3) as string[];
+  const topic = repoMentions.length > 0
+    ? `Insights from ${repoMentions.join(", ")}`
+    : bestDomain;
+
+  // Build raw synthesis fallback
+  const agentConclusions: string[] = [];
+  for (const agent of syncedAgents) {
+    const topThoughts = agent.state.thoughts
+      .filter((t) => t.confidence > 0.5 && t.conclusion.length > 20)
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 2);
+    for (const t of topThoughts) {
+      agentConclusions.push(`${agent.state.name}: ${t.conclusion}`);
+    }
+  }
+  const pheromoneInsights = domainPheromones
     .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 5)
-    .map((p) => `[${p.confidence.toFixed(2)}] ${p.content}`)
-    .join("\n\n");
+    .slice(0, 3).map((p) => p.content);
+  const synthesis = [...agentConclusions, ...pheromoneInsights].filter(Boolean).slice(0, 6).join("\n\n");
 
   const avgConfidence =
-    domainPheromones.reduce((s, p) => s + p.confidence, 0) /
-    domainPheromones.length;
+    domainPheromones.reduce((s, p) => s + p.confidence, 0) / domainPheromones.length;
+
+  // Gather all high-confidence thoughts across the whole swarm for the LLM report
+  const allThoughts: Array<{ agentName: string; specialization: string; observation: string; reasoning: string; conclusion: string; confidence: number }> = [];
+  for (const agent of agents) {
+    for (const t of agent.state.thoughts) {
+      if (t.confidence > 0.4 && t.conclusion.length > 20) {
+        allThoughts.push({
+          agentName: agent.state.name,
+          specialization: agent.state.specialization,
+          observation: t.observation,
+          reasoning: t.reasoning,
+          conclusion: t.conclusion,
+          confidence: t.confidence,
+        });
+      }
+    }
+  }
+  allThoughts.sort((a, b) => b.confidence - a.confidence);
+
+  // All repos the swarm has studied so far
+  const allRepos = [...new Set(agents.flatMap((a) => a.state.reposStudied))];
+
+  // Generate LLM-written narrative report
+  let report;
+  try {
+    const result = await generateCollectiveReport(allThoughts, allRepos, topic);
+    report = result.report;
+    console.log(`  [COLLECTIVE] Report generated (${result.tokensUsed} tokens)`);
+  } catch {
+    // LLM unavailable — proceed without report
+  }
 
   const memory: CollectiveMemory = {
     id: uuid(),
-    topic: bestDomain,
+    topic,
     synthesis,
     contributors,
     pheromoneIds: domainPheromones.map((p) => p.id),
     confidence: Math.min(1.0, avgConfidence + 0.1 * contributors.length),
     attestation: hash(synthesis + contributors.join(",") + Date.now()),
     createdAt: Date.now(),
+    report,
   };
 
   for (const agent of agents) {
@@ -359,7 +406,7 @@ async function main() {
 
     // Synthesize collective memory post-transition
     if (channel.phaseTransitionOccurred && step % 3 === 0) {
-      const memory = synthesizeCollectiveMemory(agents, channel);
+      const memory = await synthesizeCollectiveMemory(agents, channel);
       if (memory) {
         collectiveMemories.push(memory);
         console.log(

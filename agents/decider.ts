@@ -14,14 +14,15 @@ import type {
 
 // Base priorities by action type
 const ACTION_PRIORITIES: Record<AgentAction["type"], number> = {
-  fix_issue: 0.9,
-  contribute_pr: 0.85,
-  share_technique: 0.8,
-  write_code: 0.75,
-  refactor: 0.7,
+  share_technique: 0.9,
+  study_repo: 0.85,
+  explore_topic: 0.75,
   document: 0.6,
-  study_repo: 0.5,
-  explore_topic: 0.4,
+  write_code: 0.4,
+  refactor: 0.3,
+  // out of scope for demo — kept in types but deprioritized to near zero
+  fix_issue: 0.05,
+  contribute_pr: 0.05,
 };
 
 // Token cost estimates by action type
@@ -110,29 +111,7 @@ export function generateCandidateDecisions(
     });
   }
 
-  // From issues — fix opportunities
-  for (const issue of issues.slice(0, 3)) {
-    const action: AgentAction = {
-      type: "fix_issue",
-      owner: issue.owner,
-      repo: issue.repo,
-      issueNumber: issue.number,
-    };
-    const cost = estimateCost(action);
-    if (cost.estimatedTokens > budgetRemaining) continue;
-
-    candidates.push({
-      id: uuid(),
-      agentId: state.id,
-      action,
-      priority: 0,
-      cost,
-      status: "pending",
-      result: null,
-      createdAt: Date.now(),
-      completedAt: null,
-    });
-  }
+  // fix_issue and contribute_pr are out of scope for the demo — not generated as candidates
 
   // From pheromones — share technique if we have cross-domain knowledge
   if (channel.pheromones.length > 5 && state.personality.sociability > 0.5) {
@@ -375,11 +354,14 @@ function parseSuggestedAction(
     return { type: "explore_topic", topic: topic || "distributed systems" };
   }
 
-  if (lower.includes("contribute") || lower.includes("pr")) {
+  // contribute_pr and fix_issue are out of scope — redirect to study_repo instead
+  if (lower.includes("contribute") || lower.includes("pr") || lower.includes("fix_issue") || lower.includes("fix issue")) {
     const repoMatch = suggestion.match(/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)/);
     if (repoMatch) {
-      return { type: "contribute_pr", owner: repoMatch[1], repo: repoMatch[2], description: suggestion };
+      const known = repos.find((r) => r.owner === repoMatch[1] && r.repo === repoMatch[2]);
+      if (known) return { type: "study_repo", owner: known.owner, repo: known.repo };
     }
+    if (repos.length > 0) return { type: "study_repo", owner: repos[0].owner, repo: repos[0].repo };
     return null;
   }
 

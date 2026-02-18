@@ -2,9 +2,10 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
-import { SwarmState, AgentThought, AgentDecision, CollaborativeProject } from "../agents/types";
+import { SwarmState, AgentThought, AgentDecision, CollaborativeProject, Pheromone, hash } from "../agents/types";
 import { SwarmAgent } from "../agents/agent";
 import { getRecentThoughts, getRecentDecisions, getAllRepos, getAgentStats } from "../agents/persistence";
+import { v4 as uuid } from "uuid";
 
 interface EnhancedState {
   globalThoughtStream: AgentThought[];
@@ -178,6 +179,88 @@ export function startDashboard(
 
   app.get("/api/collaborations", (_req, res) => {
     res.json(enhanced?.collaborativeProjects || []);
+  });
+
+  app.get("/api/report", (_req, res) => {
+    const allThoughts = enhanced
+      ? enhanced.globalThoughtStream
+      : (() => { try { return getRecentThoughts(200); } catch { return []; } })();
+
+    // Per-agent summary
+    const agentSummaries = agents.map((a) => ({
+      name: a.state.name,
+      specialization: a.state.specialization,
+      reposStudied: a.state.reposStudied,
+      thoughtCount: a.state.thoughts.length,
+      decisionsCompleted: a.state.decisions.filter((d) => d.status === "completed").length,
+      tokensUsed: a.state.tokensUsed,
+      topConclusions: a.state.thoughts
+        .filter((t) => t.confidence > 0.5)
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 5)
+        .map((t) => ({ conclusion: t.conclusion, confidence: t.confidence, trigger: t.trigger })),
+      latestThought: a.state.thoughts.length > 0
+        ? a.state.thoughts[a.state.thoughts.length - 1]
+        : null,
+    }));
+
+    // Top insights across all agents
+    const topInsights = allThoughts
+      .filter((t) => t.confidence > 0.6)
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 20)
+      .map((t) => {
+        const agent = agents.find((a) => a.state.id === t.agentId);
+        return {
+          agentName: agent?.state.name || "Unknown",
+          agentColor: agent ? agent.state.specialization : "Generalist",
+          trigger: t.trigger,
+          conclusion: t.conclusion,
+          reasoning: t.reasoning,
+          suggestedActions: t.suggestedActions,
+          confidence: t.confidence,
+          timestamp: t.timestamp,
+        };
+      });
+
+    // Repos studied across all agents
+    const repoSet = new Map<string, { owner: string; repo: string; studiedBy: string[] }>();
+    for (const agent of agents) {
+      for (const r of agent.state.reposStudied) {
+        const existing = repoSet.get(r) || { owner: r.split("/")[0], repo: r.split("/")[1], studiedBy: [] };
+        existing.studiedBy.push(agent.state.name);
+        repoSet.set(r, existing);
+      }
+    }
+
+    res.json({
+      generatedAt: Date.now(),
+      swarmStep: state.step,
+      phaseTransition: state.phaseTransitionOccurred,
+      agentSummaries,
+      topInsights,
+      reposStudied: [...repoSet.values()],
+      collectiveMemories: state.collectiveMemories,
+    });
+  });
+
+  // Inject a human pheromone into the swarm channel
+  app.post("/api/inject", (req, res) => {
+    const { topic, content } = req.body as { topic?: string; content?: string };
+    const text = content || `Human injected topic: ${topic}`;
+    const pheromone: Pheromone = {
+      id: uuid(),
+      agentId: "human",
+      content: text,
+      domain: topic || "injected",
+      confidence: 0.85,
+      strength: 0.95,
+      connections: [],
+      timestamp: Date.now(),
+      attestation: hash(text + "human" + Date.now()),
+    };
+    state.channel.pheromones.push(pheromone);
+    res.json({ ok: true, pheromone });
   });
 
   app.get("/", (_req, res) => {

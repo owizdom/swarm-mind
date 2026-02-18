@@ -39,16 +39,26 @@ export interface PheromoneChannel {
   transitionStep: number | null;
 }
 
+/** LLM-written collective intelligence report */
+export interface CollectiveReport {
+  overview: string;          // What was studied and the main theme
+  keyFindings: string[];     // Concrete things the swarm learned
+  opinions: string;          // The swarm's own opinionated take
+  improvements: string[];    // What could have been done better
+  verdict: string;           // Final assessment / takeaway
+}
+
 /** Collective knowledge that emerges after phase transition */
 export interface CollectiveMemory {
   id: string;
   topic: string;
-  synthesis: string;         // Merged knowledge from multiple agents
+  synthesis: string;         // Raw merged knowledge (fallback)
   contributors: string[];    // Which agents contributed
   pheromoneIds: string[];    // Which pheromones were combined
   confidence: number;        // Collective confidence
   attestation: string;       // Hash of the full synthesis
   createdAt: number;
+  report?: CollectiveReport; // LLM-written narrative report
 }
 
 /** Full swarm state for dashboard */

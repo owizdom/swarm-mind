@@ -12,7 +12,6 @@ import {
   GitHubIssue,
   hash,
 } from "./types";
-import { discoverFromWeb, crossPollinateFromWeb } from "./scraper";
 import { discoverRepos, getTrendingRepos, getActionableIssues } from "./github";
 import { formThought, synthesizeKnowledge } from "./thinker";
 import {
@@ -46,19 +45,13 @@ const DOMAINS = [
   "memory management strategies",
 ];
 
-const NAMES = [
-  "Neuron-A", "Neuron-B", "Neuron-C", "Neuron-D",
-  "Neuron-E", "Neuron-F", "Neuron-G", "Neuron-H",
-];
+const NAMES = ["Neuron-A", "Neuron-B", "Neuron-C"];
 
 // Personality presets
 const PERSONALITY_PRESETS: Array<{ name: string; personality: AgentPersonality }> = [
-  { name: "Explorer",     personality: { curiosity: 0.9, diligence: 0.4, boldness: 0.3, sociability: 0.6 } },
-  { name: "Fixer",        personality: { curiosity: 0.3, diligence: 0.9, boldness: 0.7, sociability: 0.4 } },
-  { name: "Builder",      personality: { curiosity: 0.5, diligence: 0.6, boldness: 0.9, sociability: 0.3 } },
-  { name: "Synthesizer",  personality: { curiosity: 0.7, diligence: 0.5, boldness: 0.4, sociability: 0.9 } },
-  { name: "Generalist",   personality: { curiosity: 0.6, diligence: 0.6, boldness: 0.6, sociability: 0.6 } },
-  { name: "Pioneer",      personality: { curiosity: 0.8, diligence: 0.3, boldness: 0.9, sociability: 0.5 } },
+  { name: "Explorer",    personality: { curiosity: 0.9, diligence: 0.4, boldness: 0.3, sociability: 0.6 } },
+  { name: "Synthesizer", personality: { curiosity: 0.7, diligence: 0.5, boldness: 0.4, sociability: 0.9 } },
+  { name: "Builder",     personality: { curiosity: 0.5, diligence: 0.6, boldness: 0.9, sociability: 0.3 } },
 ];
 
 function generatePersonality(index: number): { specialization: string; personality: AgentPersonality } {
@@ -78,7 +71,6 @@ function generatePersonality(index: number): { specialization: string; personali
 
 export class SwarmAgent {
   state: AutonomousAgentState;
-  private explored: Set<string> = new Set(); // topics already fetched from web
   private discoveredRepos: GitHubRepo[] = [];
   private discoveredIssues: GitHubIssue[] = [];
   private engineeringEnabled: boolean = false;
@@ -421,36 +413,35 @@ export class SwarmAgent {
     return absorbed;
   }
 
-  /** Explore — fetch real knowledge from the internet */
+  /** Explore — discover GitHub repos and emit knowledge pheromones */
   private async explore(absorbed: Pheromone[]): Promise<Pheromone | null> {
-    this.state.currentAction = "exploring";
+    this.state.currentAction = "exploring github";
     const discoveryChance = this.state.synchronized ? 0.7 : 0.4;
     if (Math.random() > discoveryChance) return null;
 
     let content: string;
     let domain = this.state.explorationTarget;
     let connections: string[] = [];
-    let confidence: number;
+    let confidence: number = 0.4;
 
     if (absorbed.length > 0 && Math.random() < 0.6) {
-      // CROSS-POLLINATION: search the internet for connections
+      // CROSS-POLLINATION: search GitHub for repos related to absorbed pheromone
       const source = absorbed[Math.floor(Math.random() * absorbed.length)];
       connections = [source.id];
       confidence = Math.min(1.0, source.confidence + 0.1);
       domain = source.domain;
 
-      const webBridge = await crossPollinateFromWeb(
-        this.state.explorationTarget,
-        source.content,
-        source.domain,
-        this.explored
-      );
+      const keywords = source.content.split(/\s+/).filter((w) => w.length > 4).slice(0, 3);
+      const searchTerm = keywords.join(" ") || this.state.explorationTarget;
+      const repos = discoverRepos(searchTerm, { limit: 3 });
 
-      if (webBridge) {
-        content = webBridge.content;
-        console.log(
-          `    ${this.state.name} web bridge: ${webBridge.source}`
-        );
+      if (repos.length > 0) {
+        const repo = repos[0];
+        if (!this.discoveredRepos.some((r) => r.owner === repo.owner && r.repo === repo.repo)) {
+          this.discoveredRepos.push(repo);
+        }
+        content = `github:${repo.owner}/${repo.repo} — ${repo.description}`;
+        console.log(`    ${this.state.name} github bridge: ${repo.owner}/${repo.repo}`);
       } else {
         content = this.fallbackInsight(source);
       }
@@ -459,18 +450,20 @@ export class SwarmAgent {
         this.state.explorationTarget = source.domain;
       }
     } else {
-      // INDEPENDENT DISCOVERY
-      const webDiscovery = await discoverFromWeb(
-        this.state.explorationTarget,
-        this.explored
-      );
+      // INDEPENDENT DISCOVERY via GitHub topics
+      const discoveryTopics = (process.env.GITHUB_DISCOVERY_TOPICS || "typescript,rust,ai").split(",");
+      const topic = discoveryTopics[Math.floor(Math.random() * discoveryTopics.length)];
+      const repos = discoverRepos(topic, { limit: 5, minStars: 10 });
 
-      if (webDiscovery) {
-        content = webDiscovery.content;
-        confidence = 0.4 + Math.random() * 0.4;
-        console.log(
-          `    ${this.state.name} web discovery: ${webDiscovery.source}`
-        );
+      confidence = 0.4 + Math.random() * 0.4;
+
+      if (repos.length > 0) {
+        const repo = repos[Math.floor(Math.random() * repos.length)];
+        if (!this.discoveredRepos.some((r) => r.owner === repo.owner && r.repo === repo.repo)) {
+          this.discoveredRepos.push(repo);
+        }
+        content = `github:${repo.owner}/${repo.repo} (${repo.stars}★ ${repo.language}) — ${repo.description}`;
+        console.log(`    ${this.state.name} github discovery: ${repo.owner}/${repo.repo}`);
       } else {
         content = this.fallbackDiscovery();
         confidence = 0.3 + Math.random() * 0.4;

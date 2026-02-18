@@ -12,6 +12,7 @@ import type {
   CodeChange,
   ReviewFeedback,
   Pheromone,
+  CollectiveReport,
 } from "./types";
 
 let openaiClient: OpenAI | null = null;
@@ -451,6 +452,59 @@ Respond as JSON:
   };
 
   return { feedback, tokensUsed };
+}
+
+export async function generateCollectiveReport(
+  agentThoughts: Array<{ agentName: string; specialization: string; observation: string; reasoning: string; conclusion: string; confidence: number }>,
+  reposStudied: string[],
+  topic: string
+): Promise<{ report: CollectiveReport; tokensUsed: number }> {
+  const systemPrompt = `You are the collective intelligence of an autonomous swarm of software engineering agents.
+You synthesize what your agents have discovered and form your own opinions.
+Write like a senior engineer reflecting honestly on what was explored — be opinionated, specific, and direct.
+Do not hedge or be vague. Say what was good, what was lacking, and what surprised you.`;
+
+  const thoughtsText = agentThoughts.slice(0, 12).map((t) =>
+    `[${t.agentName} — ${t.specialization}]\nObservation: ${t.observation.slice(0, 120)}\nConclusion: ${t.conclusion}\nReasoning: ${t.reasoning.slice(0, 180)}`
+  ).join("\n\n");
+
+  const repoList = reposStudied.slice(0, 8).join(", ") || "various repositories";
+
+  const userPrompt = `The swarm studied: ${repoList}
+
+Agent thoughts and conclusions:
+${thoughtsText}
+
+Write a collective intelligence report based on what the agents actually observed and concluded.
+Be specific — reference real things the agents found, not generic statements.
+
+Respond as JSON:
+{
+  "overview": "1-2 sentences: what the swarm studied and the central theme it uncovered",
+  "keyFindings": ["3-5 specific things the swarm concretely learned — patterns, architectures, techniques, trade-offs"],
+  "opinions": "2-3 sentences of honest swarm opinion — what impressed us, what disappointed us, our own analysis beyond the facts",
+  "improvements": ["2-4 things that could have been done better — either gaps in the repos OR gaps in how the swarm approached studying them"],
+  "verdict": "1-2 sentences: the swarm's final take — is this worth studying? what is the core lesson?"
+}`;
+
+  const { content, tokensUsed } = await callLLM(systemPrompt, userPrompt, {
+    maxTokens: 1400,
+    temperature: 0.82,
+    jsonMode: true,
+  });
+
+  let parsed: Partial<CollectiveReport> = {};
+  try { parsed = JSON.parse(content); } catch { /* use fallback */ }
+
+  const report: CollectiveReport = {
+    overview:      parsed.overview     || topic,
+    keyFindings:   parsed.keyFindings  || [],
+    opinions:      parsed.opinions     || "",
+    improvements:  parsed.improvements || [],
+    verdict:       parsed.verdict      || "",
+  };
+
+  return { report, tokensUsed };
 }
 
 export async function generateCode(

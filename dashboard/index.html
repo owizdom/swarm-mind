@@ -3,322 +3,428 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Emergent Swarm Mind v2</title>
+  <title>Swarm Mind</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --border: #e8eaed;
+      --border-soft: #f0f2f5;
+      --text: #111827;
+      --text-2: #6b7280;
+      --text-3: #9ca3af;
+      --accent: #6366f1;
+      --accent-soft: #eef2ff;
+      --green: #10b981;
+      --green-soft: #d1fae5;
+      --amber: #f59e0b;
+      --amber-soft: #fef3c7;
+      --pink: #ec4899;
+      --pink-soft: #fce7f3;
+      --blue: #3b82f6;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      background: #000;
-      color: #e0e0e0;
-      overflow: hidden;
-      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      height: 100vh; overflow: hidden; font-size: 13px;
     }
+    .app { display:grid; grid-template-rows:52px 1fr; height:100vh; }
 
-    .container {
-      display: grid;
-      grid-template-columns: 1fr 360px;
-      grid-template-rows: 50px 1fr 220px;
-      height: 100vh;
-      gap: 0;
-    }
-
+    /* ── Header ── */
     .header {
-      grid-column: 1 / -1;
-      background: rgba(10,10,15,0.95);
-      border-bottom: 1px solid #1a1a2e;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0 20px;
+      background: var(--surface); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; padding:0 20px; gap:16px;
+      box-shadow: var(--shadow); z-index:20;
+    }
+    .brand { display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; white-space:nowrap; }
+    .brand-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(.85)} }
+    .header-pills { display:flex; gap:6px; flex:1; }
+    .pill {
+      display:flex; align-items:center; gap:5px;
+      padding:4px 10px; border-radius:20px; font-size:11.5px; font-weight:500;
+      background:var(--bg); border:1px solid var(--border); color:var(--text-2); white-space:nowrap;
+    }
+    .pill .val { font-weight:700; color:var(--text); }
+    .pill.accent { background:var(--accent-soft); border-color:#c7d2fe; color:var(--accent); }
+    .pill.accent .val { color:var(--accent); }
+    .pill.green { background:var(--green-soft); border-color:#a7f3d0; }
+    .pill.green .val { color:var(--green); }
+    .pill.amber { background:var(--amber-soft); border-color:#fde68a; }
+    .pill.amber .val { color:var(--amber); }
+    .transition-badge {
+      display:none; padding:4px 12px; border-radius:20px;
+      background:linear-gradient(135deg,var(--accent),var(--pink));
+      color:white; font-size:11px; font-weight:600; letter-spacing:.5px;
+      animation:glow 1.5s ease-in-out infinite alternate;
+    }
+    @keyframes glow {
+      from { box-shadow:0 0 8px rgba(99,102,241,.4); }
+      to   { box-shadow:0 0 16px rgba(236,72,153,.5); }
     }
 
-    .header h1 {
-      font-size: 1em;
-      letter-spacing: 3px;
-      background: linear-gradient(90deg, #4a9eff, #a855f7, #ec4899);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    /* ── Inject bar ── */
+    .inject-wrap {
+      display:flex; align-items:center; gap:6px;
+      border-left:1px solid var(--border); padding-left:16px;
     }
-
-    .header-stats {
-      display: flex;
-      gap: 18px;
-      font-size: 0.72em;
+    .inject-input {
+      padding:5px 10px; border-radius:20px; border:1px solid var(--border);
+      font-size:12px; outline:none; width:180px; background:var(--bg);
+      transition:border .2s, box-shadow .2s;
     }
-
-    .header-stats .stat { color: #666; }
-    .header-stats .stat .val { color: #4a9eff; font-weight: bold; }
-    .header-stats .stat.synced .val { color: #a855f7; }
-    .header-stats .stat.transition .val { color: #ec4899; }
-    .header-stats .stat.tokens .val { color: #f59e0b; }
-    .header-stats .stat.prs .val { color: #10b981; }
-
-    /* Canvas area */
-    .canvas-area {
-      position: relative;
-      background: #030308;
-      overflow: hidden;
+    .inject-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+    .inject-btn {
+      padding:5px 14px; border-radius:20px; border:none; cursor:pointer;
+      background:var(--accent); color:white; font-size:12px; font-weight:600;
+      transition:opacity .15s, transform .1s;
     }
-
-    canvas {
-      width: 100%;
-      height: 100%;
+    .inject-btn:hover { opacity:.88; }
+    .inject-btn:active { transform:scale(.96); }
+    .inject-feedback {
+      font-size:11px; color:var(--green); font-weight:600;
+      opacity:0; transition:opacity .3s;
     }
+    .inject-feedback.show { opacity:1; }
 
-    /* Density meter overlay */
-    .density-meter {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      right: 20px;
-      height: 6px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 3px;
-      overflow: hidden;
+    /* ── Body layout ── */
+    .body { display:grid; grid-template-columns:192px 1fr; overflow:hidden; }
+
+    /* ── Tabs sidebar ── */
+    .tabs {
+      background:var(--surface); border-right:1px solid var(--border);
+      padding:12px 8px; display:flex; flex-direction:column; gap:2px;
     }
-
-    .density-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.5s ease, background 0.5s ease;
+    .tab-section-label {
+      font-size:10px; font-weight:600; color:var(--text-3);
+      text-transform:uppercase; letter-spacing:.8px; padding:10px 12px 4px;
     }
-
-    .density-label {
-      position: absolute;
-      bottom: 32px;
-      left: 20px;
-      font-size: 0.65em;
-      color: #444;
+    .tab-btn {
+      display:flex; align-items:center; gap:9px; padding:8px 12px;
+      border-radius:var(--radius-sm); cursor:pointer; border:none;
+      background:none; color:var(--text-2); font-size:13px; font-weight:500;
+      width:100%; text-align:left; transition:all .15s;
     }
+    .tab-btn:hover { background:var(--bg); color:var(--text); }
+    .tab-btn.active { background:var(--accent-soft); color:var(--accent); }
+    .tab-icon { font-size:15px; width:18px; text-align:center; }
 
-    .critical-line {
-      position: absolute;
-      bottom: 20px;
-      height: 6px;
-      width: 2px;
-      background: #ec4899;
-      opacity: 0.6;
+    /* ── Content panels ── */
+    .content { overflow:hidden; position:relative; }
+    .tab-panel { display:none; height:100%; overflow:hidden; }
+    .tab-panel.active { display:flex; flex-direction:column; }
+
+    /* ── Live layout ── */
+    .live-layout { display:grid; grid-template-columns:1fr 300px; height:100%; overflow:hidden; }
+    .canvas-wrap { position:relative; background:#fafbfc; overflow:hidden; cursor:crosshair; }
+    canvas { width:100%; height:100%; }
+
+    /* density bar */
+    .density-bar-wrap { position:absolute; bottom:16px; left:16px; right:16px; }
+    .density-label-row { display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-3); margin-bottom:4px; }
+    .density-track { height:5px; background:var(--border); border-radius:3px; overflow:visible; position:relative; }
+    .density-fill { height:100%; border-radius:3px; transition:width .6s ease, background .4s; }
+    .density-threshold-marker { position:absolute; top:-3px; width:2px; height:11px; background:var(--pink); border-radius:1px; }
+
+    .flash-overlay {
+      position:absolute; inset:0;
+      background:radial-gradient(circle at center, rgba(99,102,241,.15), transparent 70%);
+      pointer-events:none; opacity:0;
     }
+    .flash-overlay.active { animation:flashAnim 2s ease-out forwards; }
+    @keyframes flashAnim { 0%{opacity:1} 100%{opacity:0} }
 
-    /* Phase transition flash */
-    .flash {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: radial-gradient(circle at center, rgba(168,85,247,0.3), transparent 70%);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s;
+    /* ── Focus panel overlay (right of canvas on click) ── */
+    .focus-overlay {
+      position:absolute; top:12px; left:12px; width:280px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); box-shadow:var(--shadow-lg);
+      padding:14px; z-index:10; transition:opacity .2s, transform .2s;
+      opacity:0; pointer-events:none; transform:translateY(4px);
+      max-height:calc(100% - 80px); overflow-y:auto;
     }
-
-    .flash.active {
-      animation: flashPulse 2s ease-out;
+    .focus-overlay.visible { opacity:1; pointer-events:auto; transform:translateY(0); }
+    .focus-close {
+      position:absolute; top:10px; right:10px; width:22px; height:22px;
+      border-radius:50%; border:none; background:var(--bg); cursor:pointer;
+      font-size:12px; color:var(--text-2); display:flex; align-items:center; justify-content:center;
     }
-
-    @keyframes flashPulse {
-      0% { opacity: 0.8; }
-      100% { opacity: 0; }
+    .focus-close:hover { background:var(--border); }
+    .focus-agent-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .focus-avatar { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:white; flex-shrink:0; }
+    .focus-name { font-weight:700; font-size:13px; }
+    .focus-spec { font-size:11px; color:var(--text-3); }
+    .focus-section { margin-bottom:10px; }
+    .focus-section-title { font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+    .focus-thought {
+      padding:7px 9px; border-radius:var(--radius-sm); border:1px solid var(--border);
+      margin-bottom:4px; font-size:11.5px; color:var(--text-2); line-height:1.5;
+      background:var(--bg);
     }
-
-    /* PR burst effect */
-    @keyframes prBurst {
-      0% { transform: scale(0); opacity: 1; }
-      100% { transform: scale(3); opacity: 0; }
+    .focus-thought-conf { font-size:10px; color:var(--green); font-weight:600; float:right; }
+    .focus-repo-tag {
+      display:inline-block; padding:2px 8px; border-radius:10px;
+      background:var(--accent-soft); border:1px solid #c7d2fe;
+      color:var(--accent); font-size:10.5px; margin:2px;
     }
+    .focus-stat-row { display:flex; gap:8px; margin-bottom:8px; }
+    .focus-stat { flex:1; text-align:center; background:var(--bg); border-radius:var(--radius-sm); padding:6px; }
+    .focus-stat-val { font-size:18px; font-weight:700; }
+    .focus-stat-lbl { font-size:9.5px; color:var(--text-3); text-transform:uppercase; }
 
-    .pr-burst {
-      position: absolute;
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      border: 2px solid #10b981;
-      pointer-events: none;
-      animation: prBurst 1s ease-out forwards;
+    /* ── Sidebar ── */
+    .sidebar {
+      border-left:1px solid var(--border); overflow-y:auto;
+      padding:12px; background:var(--surface); display:flex; flex-direction:column; gap:14px;
     }
+    .section-title { font-size:11px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; }
 
-    /* Side panel */
-    .side-panel {
-      background: rgba(10,10,15,0.95);
-      border-left: 1px solid #1a1a2e;
-      overflow-y: auto;
-      padding: 12px;
+    /* Agent rows */
+    .agent-row {
+      display:flex; align-items:center; gap:8px; padding:6px 8px;
+      border-radius:var(--radius-sm); background:var(--bg); margin-bottom:4px;
+      cursor:pointer; transition:all .15s; border:1px solid transparent;
     }
+    .agent-row:hover { border-color:var(--border); box-shadow:var(--shadow); }
+    .agent-row.focused { background:var(--accent-soft); border-color:#c7d2fe; }
+    .agent-row.synced { background:var(--green-soft); }
+    .agent-avatar { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:white; flex-shrink:0; }
+    .agent-info { flex:1; min-width:0; }
+    .agent-name { font-weight:600; font-size:12px; }
+    .agent-action-text { font-size:10.5px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .agent-discoveries { font-size:11px; font-weight:600; color:var(--text-2); }
 
-    .panel-section {
-      margin-bottom: 16px;
+    /* Thought cards */
+    .thought-card { padding:8px 10px; border-radius:var(--radius-sm); border:1px solid var(--border); margin-bottom:6px; background:var(--bg); }
+    .thought-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .thought-agent-name { font-weight:600; font-size:11.5px; }
+    .confidence-badge { font-size:10px; padding:1px 6px; border-radius:10px; background:var(--green-soft); color:var(--green); font-weight:600; }
+    .thought-text { font-size:11.5px; color:var(--text-2); line-height:1.5; }
+
+    /* ── Agents grid tab ── */
+    .agents-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; padding:16px; overflow-y:auto; }
+    .agent-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow); }
+    .agent-card-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .agent-card-avatar { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:white; }
+    .agent-card-name { font-weight:700; font-size:13px; }
+    .agent-card-spec { font-size:11px; color:var(--text-3); margin-top:1px; }
+    .agent-stats-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:10px; }
+    .stat-box { background:var(--bg); border-radius:var(--radius-sm); padding:6px 8px; text-align:center; }
+    .stat-box-val { font-size:16px; font-weight:700; }
+    .stat-box-lbl { font-size:9.5px; color:var(--text-3); text-transform:uppercase; letter-spacing:.4px; }
+    .token-bar-wrap { margin-bottom:8px; }
+    .token-bar-label { display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-3); margin-bottom:3px; }
+    .token-bar-track { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+    .token-bar-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--pink)); border-radius:2px; transition:width .5s; }
+    .latest-thought-box { background:var(--accent-soft); border-radius:var(--radius-sm); padding:8px; font-size:11px; color:#4338ca; line-height:1.4; border:1px solid #c7d2fe; }
+    .synced-tag { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 7px; border-radius:10px; background:var(--green-soft); color:var(--green); font-weight:600; }
+
+    /* ── Pheromones tab ── */
+    .pheromone-row { display:flex; align-items:flex-start; gap:10px; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border); margin-bottom:6px; background:var(--surface); }
+    .pheromone-type-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
+    .pheromone-content { font-size:12px; color:var(--text-2); line-height:1.4; flex:1; }
+    .pheromone-meta { font-size:10.5px; color:var(--text-3); margin-top:3px; }
+    .pheromone-strength { font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:10px; background:var(--bg); border:1px solid var(--border); color:var(--text-2); white-space:nowrap; }
+    .human-pheromone { background:var(--accent-soft); border-color:#c7d2fe; }
+
+    /* ── Report tab ── */
+    .report-layout { display:grid; grid-template-columns:1fr 320px; height:100%; overflow:hidden; }
+    .report-main { overflow-y:auto; padding:20px; }
+    .report-aside { border-left:1px solid var(--border); overflow-y:auto; padding:16px; background:var(--surface); }
+    .report-section { margin-bottom:24px; }
+    .report-section-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid var(--border); }
+    .report-section-title { font-size:15px; font-weight:700; }
+    .report-section-count { font-size:11px; padding:2px 8px; border-radius:10px; background:var(--bg); border:1px solid var(--border); color:var(--text-2); font-weight:600; }
+    .insight-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:8px; box-shadow:var(--shadow); transition:box-shadow .2s; }
+    .insight-card:hover { box-shadow:var(--shadow-md); }
+    .insight-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .insight-agent-tag { font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; color:white; }
+    .insight-trigger { font-size:10.5px; color:var(--text-3); background:var(--bg); padding:2px 7px; border-radius:10px; border:1px solid var(--border); }
+    .insight-confidence { margin-left:auto; font-size:11px; font-weight:600; color:var(--green); }
+    .insight-conclusion { font-size:13px; font-weight:500; color:var(--text); margin-bottom:6px; line-height:1.5; }
+    .insight-reasoning { font-size:12px; color:var(--text-2); line-height:1.6; margin-bottom:8px; }
+    .insight-actions { display:flex; flex-wrap:wrap; gap:4px; }
+    .action-tag { font-size:10.5px; padding:2px 8px; border-radius:10px; background:var(--accent-soft); color:var(--accent); border:1px solid #c7d2fe; }
+    .repo-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--surface); margin-bottom:6px; }
+    .repo-icon { width:28px; height:28px; border-radius:var(--radius-sm); background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+    .repo-name { font-size:12.5px; font-weight:600; }
+    .studied-by-tags { display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
+    .studied-by-tag { font-size:9.5px; padding:1px 6px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text-2); }
+    .memory-card { background:linear-gradient(135deg,#f5f3ff,#fdf2f8); border:1px solid #e9d5ff; border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; }
+    .memory-topic { font-size:13px; font-weight:700; color:#7c3aed; margin-bottom:6px; }
+    .memory-synthesis { font-size:12px; color:#6d28d9; line-height:1.5; }
+    .memory-meta { font-size:10.5px; color:#a78bfa; margin-top:6px; }
+
+    /* ── Collective tab ── */
+    .scroll-panel { flex:1; overflow-y:auto; padding:20px; max-width:860px; margin:0 auto; width:100%; }
+
+    .collective-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:12px;
+      padding:20px 24px; margin-bottom:16px; box-shadow:var(--shadow-md);
     }
+    .collective-header { margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-soft); }
+    .collective-title { font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px; }
+    .collective-meta { font-size:11px; color:var(--text-3); display:flex; gap:12px; flex-wrap:wrap; }
+    .collective-meta-item { display:flex; align-items:center; gap:4px; }
 
-    .panel-section h3 {
-      font-size: 0.7em;
-      color: #444;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 8px;
-      padding-bottom: 4px;
-      border-bottom: 1px solid #1a1a2e;
+    .report-block { margin-bottom:16px; }
+    .report-block:last-child { margin-bottom:0; }
+    .report-label {
+      font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.9px;
+      margin-bottom:6px; display:flex; align-items:center; gap:6px;
     }
+    .report-label.overview  { color:#6366f1; }
+    .report-label.findings  { color:#0ea5e9; }
+    .report-label.opinions  { color:#8b5cf6; }
+    .report-label.improve   { color:#f59e0b; }
+    .report-label.verdict   { color:#10b981; }
 
-    /* Agent list */
-    .agent-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 0;
-      font-size: 0.72em;
+    .report-prose {
+      font-size:13px; color:var(--text); line-height:1.7;
+      padding:10px 14px; border-radius:var(--radius-sm); background:var(--bg);
+      border-left:3px solid;
     }
+    .report-prose.overview  { border-left-color:#6366f1; }
+    .report-prose.opinions  { border-left-color:#8b5cf6; font-style:italic; }
+    .report-prose.verdict   { border-left-color:#10b981; font-weight:500; }
 
-    .agent-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
+    .report-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:5px; }
+    .report-list li {
+      font-size:12.5px; color:var(--text-2); line-height:1.6;
+      padding:7px 10px 7px 12px; border-radius:var(--radius-sm);
+      position:relative;
     }
+    .report-list li::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:60%; border-radius:2px; }
+    .report-list.findings li { background:#f0f9ff; }
+    .report-list.findings li::before { background:#0ea5e9; }
+    .report-list.improve  li { background:#fffbeb; }
+    .report-list.improve  li::before { background:#f59e0b; }
 
-    .agent-name { color: #888; min-width: 62px; }
-    .agent-action { color: #555; font-size: 0.85em; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .agent-stat { color: #4a9eff; font-size: 0.85em; min-width: 20px; text-align: right; }
-    .agent-pr-count { color: #10b981; font-size: 0.85em; min-width: 16px; text-align: right; }
-    .agent-item.synced .agent-name { color: #a855f7; }
-    .agent-item.synced .agent-dot { box-shadow: 0 0 6px currentColor; }
+    .collective-fallback { font-size:12px; color:var(--text-2); line-height:1.6; white-space:pre-wrap; background:var(--bg); padding:10px 12px; border-radius:var(--radius-sm); }
+    .collective-generating { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-3); padding:10px; }
+    .generating-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:pulse 1.2s infinite; }
 
-    /* Thought stream */
-    .thought-item {
-      padding: 6px 0;
-      border-bottom: 1px solid #0a0a12;
-      font-size: 0.7em;
-    }
+    .empty-state { text-align:center; padding:32px 16px; color:var(--text-3); font-size:12.5px; }
+    .empty-state-icon { font-size:28px; margin-bottom:8px; }
 
-    .thought-header {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 2px;
-    }
-
-    .thought-agent { font-weight: bold; }
-    .thought-confidence { color: #444; }
-    .thought-conclusion { color: #888; line-height: 1.3; }
-    .thought-actions { color: #4a9eff; font-size: 0.9em; margin-top: 2px; }
-
-    /* Collective memories */
-    .memory-item {
-      padding: 8px;
-      margin-bottom: 6px;
-      border-radius: 6px;
-      border: 1px solid #2a1a3e;
-      background: rgba(168,85,247,0.05);
-    }
-
-    .memory-topic {
-      color: #a855f7;
-      font-size: 0.8em;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-
-    .memory-synthesis {
-      color: #888;
-      font-size: 0.7em;
-      line-height: 1.4;
-      max-height: 80px;
-      overflow: hidden;
-    }
-
-    .memory-meta {
-      font-size: 0.65em;
-      color: #444;
-      margin-top: 4px;
-    }
-
-    /* Bottom panel */
-    .bottom-panel {
-      grid-column: 1 / -1;
-      background: rgba(10,10,15,0.95);
-      border-top: 1px solid #1a1a2e;
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 1px;
-      overflow: hidden;
-    }
-
-    .bottom-section {
-      padding: 12px;
-      overflow-y: auto;
-    }
-
-    .bottom-section h3 {
-      font-size: 0.65em;
-      color: #444;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 8px;
-    }
-
-    /* Decision status colors */
-    .decision-status-pending { color: #666; }
-    .decision-status-executing { color: #f59e0b; }
-    .decision-status-completed { color: #10b981; }
-    .decision-status-failed { color: #f43f5e; }
-
-    .empty { color: #333; font-size: 0.75em; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:var(--text-3); }
   </style>
 </head>
 <body>
+<div class="app">
 
-<div class="container">
+  <!-- Header -->
   <div class="header">
-    <h1>EMERGENT SWARM MIND v2</h1>
-    <div class="header-stats">
-      <div class="stat">Step <span class="val" id="h-step">0</span></div>
-      <div class="stat">Pheromones <span class="val" id="h-pheromones">0</span></div>
-      <div class="stat">Discoveries <span class="val" id="h-discoveries">0</span></div>
-      <div class="stat synced">Synced <span class="val" id="h-synced">0/0</span></div>
-      <div class="stat tokens">Tokens <span class="val" id="h-tokens">0</span></div>
-      <div class="stat prs">PRs <span class="val" id="h-prs">0</span></div>
-      <div class="stat transition" id="h-transition-wrap" style="display:none">
-        <span class="val">PHASE TRANSITION</span>
-      </div>
+    <div class="brand"><div class="brand-dot"></div>Swarm Mind</div>
+    <div class="header-pills">
+      <div class="pill">Step <span class="val" id="h-step">0</span></div>
+      <div class="pill accent">Pheromones <span class="val" id="h-pheromones">0</span></div>
+      <div class="pill">Discoveries <span class="val" id="h-discoveries">0</span></div>
+      <div class="pill green">Synced <span class="val" id="h-synced">0/0</span></div>
+      <div class="pill amber">Tokens <span class="val" id="h-tokens">0</span></div>
+      <div class="pill">Density <span class="val" id="h-density">0.000</span></div>
+      <div class="transition-badge" id="h-transition">⚡ Phase Transition</div>
+    </div>
+    <div class="inject-wrap">
+      <input class="inject-input" id="inject-input" type="text" placeholder="Inject a topic…" />
+      <button class="inject-btn" onclick="injectTopic()">Inject</button>
+      <span class="inject-feedback" id="inject-feedback">✓ Injected!</span>
     </div>
   </div>
 
-  <div class="canvas-area">
-    <canvas id="canvas"></canvas>
-    <div class="density-meter">
-      <div class="density-fill" id="density-fill"></div>
+  <div class="body">
+    <!-- Sidebar tabs -->
+    <div class="tabs">
+      <div class="tab-section-label">Monitor</div>
+      <button class="tab-btn active" onclick="switchTab('live')"><span class="tab-icon">⬤</span> Live View</button>
+      <button class="tab-btn" onclick="switchTab('agents')"><span class="tab-icon">◈</span> Agents</button>
+      <button class="tab-btn" onclick="switchTab('pheromones')"><span class="tab-icon">◎</span> Pheromones</button>
+      <div class="tab-section-label" style="margin-top:8px">Analysis</div>
+      <button class="tab-btn" onclick="switchTab('report')"><span class="tab-icon">◷</span> Report</button>
+      <button class="tab-btn" onclick="switchTab('collective')"><span class="tab-icon">◈</span> Collective</button>
     </div>
-    <div class="density-label" id="density-label">Density: 0.000 / threshold: 0.55</div>
-    <div class="critical-line" id="critical-line"></div>
-    <div class="flash" id="flash"></div>
-  </div>
 
-  <div class="side-panel">
-    <div class="panel-section">
-      <h3>Agents</h3>
-      <div id="agent-list"></div>
-    </div>
-    <div class="panel-section">
-      <h3>Collective Memories</h3>
-      <div id="collective-list">
-        <div class="empty">Waiting for phase transition...</div>
-      </div>
-    </div>
-    <div class="panel-section">
-      <h3>Agent Thoughts</h3>
-      <div id="thought-feed">
-        <div class="empty">Agents thinking...</div>
-      </div>
-    </div>
-  </div>
+    <!-- Content -->
+    <div class="content">
 
-  <div class="bottom-panel">
-    <div class="bottom-section">
-      <h3>Decision Log</h3>
-      <div id="decision-log"><div class="empty">No decisions yet</div></div>
-    </div>
-    <div class="bottom-section">
-      <h3>GitHub Activity</h3>
-      <div id="github-activity"><div class="empty">No GitHub activity yet</div></div>
-    </div>
-    <div class="bottom-section">
-      <h3>Domain Coverage</h3>
-      <div id="domain-coverage"><div class="empty">Scanning domains...</div></div>
+      <!-- Live View -->
+      <div class="tab-panel active" id="panel-live">
+        <div class="live-layout">
+          <div class="canvas-wrap" id="canvas-wrap">
+            <canvas id="canvas"></canvas>
+            <!-- Focus panel (click agent to open) -->
+            <div class="focus-overlay" id="focus-overlay">
+              <button class="focus-close" onclick="closeFocus()">✕</button>
+              <div id="focus-content"></div>
+            </div>
+            <div class="density-bar-wrap">
+              <div class="density-label-row">
+                <span id="density-label">Density 0.000</span>
+                <span id="density-threshold-label">Threshold 0.60</span>
+              </div>
+              <div class="density-track">
+                <div class="density-fill" id="density-fill"></div>
+                <div class="density-threshold-marker" id="density-marker"></div>
+              </div>
+            </div>
+            <div class="flash-overlay" id="flash"></div>
+          </div>
+          <div class="sidebar">
+            <div>
+              <div class="section-title">Agents <span style="color:var(--text-3);font-weight:400;font-size:10px">— click to inspect</span></div>
+              <div id="agent-list"></div>
+            </div>
+            <div>
+              <div class="section-title">Live Thoughts</div>
+              <div id="thought-feed"><div class="empty-state"><div class="empty-state-icon">🧠</div>Agents thinking...</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agents tab -->
+      <div class="tab-panel" id="panel-agents">
+        <div class="agents-grid" id="agents-grid"></div>
+      </div>
+
+      <!-- Pheromones tab -->
+      <div class="tab-panel" id="panel-pheromones">
+        <div class="scroll-panel">
+          <div id="pheromone-list"><div class="empty-state"><div class="empty-state-icon">◎</div>No pheromones yet</div></div>
+        </div>
+      </div>
+
+      <!-- Report tab -->
+      <div class="tab-panel" id="panel-report">
+        <div class="report-layout">
+          <div class="report-main" id="report-main"><div class="empty-state" style="padding-top:60px"><div class="empty-state-icon">📊</div>Generating report...</div></div>
+          <div class="report-aside">
+            <div class="section-title" style="margin-bottom:12px">Repos Studied</div>
+            <div id="report-repos"><div class="empty-state"><div class="empty-state-icon">📁</div>None yet</div></div>
+            <div class="section-title" style="margin-top:16px;margin-bottom:12px">Agent Summaries</div>
+            <div id="report-agent-summaries"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collective tab -->
+      <div class="tab-panel" id="panel-collective">
+        <div style="flex:1;overflow-y:auto;padding:20px;">
+          <div style="max-width:860px;margin:0 auto;" id="collective-list">
+            <div class="empty-state"><div class="empty-state-icon">🌐</div>Waiting for phase transition...</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -328,26 +434,43 @@ const API = window.location.origin;
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let agents = [];
-let pheromones = [];
-let thoughts = [];
-let decisions = [];
-let prevTransition = false;
-let prevPRCount = 0;
+let agents = [], pheromones = [], thoughts = [], decisions = [];
+let prevTransition = false, focusedAgentId = null;
 let agentColors = {};
-const palette = [
-  '#4a9eff', '#a855f7', '#ec4899', '#22d3ee',
-  '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6'
-];
+const palette = ['#6366f1','#ec4899','#10b981','#f59e0b','#3b82f6','#8b5cf6','#06b6d4','#f43f5e'];
+const pheromoneTypeColors = { knowledge:'#3b82f6', code:'#10b981', pr:'#f59e0b', technique:'#8b5cf6' };
 
-// Pheromone type colors
-const pheromoneTypeColors = {
-  knowledge: '#4a9eff',
-  code: '#10b981',
-  pr: '#f59e0b',
-  technique: '#a855f7',
-};
+// Chat bubbles: [{agentId, text, createdAt}]
+let chatBubbles = [];
+const BUBBLE_DURATION = 5000; // ms
 
+// ── Tab switching ──
+function switchTab(name) {
+  const tabNames = ['live','agents','pheromones','report','collective'];
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', tabNames[i] === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'live') resize();
+  if (name === 'report') fetchReport();
+}
+
+// ── Colors ──
+function getColor(agentId) {
+  if (!agentColors[agentId]) agentColors[agentId] = palette[Object.keys(agentColors).length % palette.length];
+  return agentColors[agentId];
+}
+function formatTokens(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000) return (n/1000).toFixed(1)+'k';
+  return String(n);
+}
+function timeSince(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s < 60) return s+'s ago';
+  return Math.floor(s/60)+'m ago';
+}
+
+// ── Canvas resize ──
 function resize() {
   const area = canvas.parentElement;
   canvas.width = area.clientWidth * 2;
@@ -357,349 +480,602 @@ function resize() {
   ctx.scale(2, 2);
 }
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => {
+  if (document.getElementById('panel-live').classList.contains('active')) resize();
+});
 
-function getColor(agentId, index) {
-  if (!agentColors[agentId]) {
-    agentColors[agentId] = palette[Object.keys(agentColors).length % palette.length];
+// ── Canvas coord helpers ──
+function agentToCanvas(a) {
+  const w = canvas.width/2, h = canvas.height/2;
+  return { x: a.position.x * w/1000, y: a.position.y * h/800 };
+}
+function canvasToWorld(cx, cy) {
+  const w = canvas.width/2, h = canvas.height/2;
+  return { x: cx * 1000/w, y: cy * 800/h };
+}
+
+// ── Canvas click → focus agent ──
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const cx = (e.clientX - rect.left);
+  const cy = (e.clientY - rect.top);
+  const world = canvasToWorld(cx, cy);
+
+  let closest = null, closestDist = Infinity;
+  for (const a of agents) {
+    const dx = a.position.x - world.x, dy = a.position.y - world.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < closestDist) { closestDist = dist; closest = a; }
   }
-  return agentColors[agentId];
+
+  if (closest && closestDist < 60) {
+    openFocus(closest.id);
+  } else {
+    closeFocus();
+  }
+});
+
+function openFocus(agentId) {
+  focusedAgentId = agentId;
+  const overlay = document.getElementById('focus-overlay');
+  overlay.classList.add('visible');
+  renderFocusPanel();
 }
 
-function getPheromoneColor(p) {
-  return pheromoneTypeColors[p.pheromoneType] || pheromoneTypeColors.knowledge;
+function closeFocus() {
+  focusedAgentId = null;
+  document.getElementById('focus-overlay').classList.remove('visible');
 }
 
-function drawSwarm(agents, pheromones, transitioned) {
-  const w = canvas.width / 2;
-  const h = canvas.height / 2;
+function renderFocusPanel() {
+  if (!focusedAgentId) return;
+  const a = agents.find(ag => ag.id === focusedAgentId);
+  if (!a) return;
+  const color = getColor(a.id);
+  const initials = (a.name||'').replace('Neuron-','').slice(0,2);
+  const tokenPct = Math.min((a.tokensUsed||0)/(a.tokenBudget||1)*100,100).toFixed(0);
 
-  // Clear with trail effect
-  ctx.fillStyle = transitioned ? 'rgba(3,3,8,0.15)' : 'rgba(3,3,8,0.25)';
+  // Fetch full agent data for thoughts + repos
+  fetch(API+'/api/agent/'+a.id).then(r=>r.json()).then(full => {
+    const thoughts = (full.recentThoughts||[]).filter(t=>t.conclusion).slice(0,5);
+    const repos = (full.reposStudied||[]).slice(0,8);
+
+    document.getElementById('focus-content').innerHTML = `
+      <div class="focus-agent-header">
+        <div class="focus-avatar" style="background:${color}">${initials}</div>
+        <div>
+          <div class="focus-name">${a.name}</div>
+          <div class="focus-spec">${a.specialization||''} ${a.synchronized?'<span class="synced-tag">✓ Synced</span>':''}</div>
+        </div>
+      </div>
+      <div class="focus-stat-row">
+        <div class="focus-stat"><div class="focus-stat-val">${a.discoveries||0}</div><div class="focus-stat-lbl">Found</div></div>
+        <div class="focus-stat"><div class="focus-stat-val">${a.thoughtCount||0}</div><div class="focus-stat-lbl">Thoughts</div></div>
+        <div class="focus-stat"><div class="focus-stat-val">${formatTokens(a.tokensUsed||0)}</div><div class="focus-stat-lbl">Tokens</div></div>
+      </div>
+      <div class="token-bar-wrap" style="margin-bottom:10px">
+        <div class="token-bar-track"><div class="token-bar-fill" style="width:${tokenPct}%"></div></div>
+      </div>
+      ${repos.length > 0 ? `
+        <div class="focus-section">
+          <div class="focus-section-title">Repos Studied</div>
+          ${repos.map(r=>`<span class="focus-repo-tag">📦 ${r}</span>`).join('')}
+        </div>` : ''}
+      ${thoughts.length > 0 ? `
+        <div class="focus-section">
+          <div class="focus-section-title">Top Thoughts</div>
+          ${thoughts.map(t=>`
+            <div class="focus-thought">
+              <span class="focus-thought-conf">${Math.round((t.confidence||0)*100)}%</span>
+              ${(t.conclusion||'').slice(0,160)}
+            </div>`).join('')}
+        </div>` : ''}
+      <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;font-style:italic">${a.currentAction||'idle'}</div>
+    `;
+  }).catch(() => {
+    document.getElementById('focus-content').innerHTML = `<div class="focus-agent-header">
+      <div class="focus-avatar" style="background:${color}">${initials}</div>
+      <div><div class="focus-name">${a.name}</div><div class="focus-spec">${a.specialization||''}</div></div>
+    </div>`;
+  });
+}
+
+// ── Chat bubbles ──
+function addBubble(agentId, text) {
+  chatBubbles.push({ agentId, text: text.slice(0,90), createdAt: Date.now() });
+  if (chatBubbles.length > 8) chatBubbles.shift();
+}
+
+function drawBubbles() {
+  const now = Date.now();
+  chatBubbles = chatBubbles.filter(b => now - b.createdAt < BUBBLE_DURATION);
+
+  for (const bubble of chatBubbles) {
+    const a = agents.find(ag => ag.id === bubble.agentId);
+    if (!a) continue;
+
+    const pos = agentToCanvas(a);
+    const age = now - bubble.createdAt;
+    const alpha = age < 500 ? age/500 : age > 4000 ? 1 - (age-4000)/1000 : 1;
+    const color = getColor(bubble.agentId);
+
+    const maxW = 160, pad = 8, lineH = 14;
+    ctx.font = '10px -apple-system,sans-serif';
+
+    // Word wrap
+    const words = bubble.text.split(' ');
+    const lines = [];
+    let line = '';
+    for (const w of words) {
+      const test = line ? line+' '+w : w;
+      if (ctx.measureText(test).width > maxW - pad*2) { if (line) lines.push(line); line = w; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+
+    const bw = maxW, bh = lines.length * lineH + pad*2 + 6;
+    let bx = pos.x + 14, by = pos.y - bh - 10;
+
+    const cw = canvas.width/2, ch = canvas.height/2;
+    if (bx + bw > cw - 10) bx = pos.x - bw - 14;
+    if (by < 10) by = pos.y + 16;
+
+    ctx.globalAlpha = alpha;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.beginPath();
+    ctx.roundRect(bx+2, by+2, bw, bh, 8);
+    ctx.fill();
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 8);
+    ctx.fill();
+
+    // Accent bar
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, 3, bh, [8,0,0,8]);
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = '#374151';
+    lines.forEach((l, i) => ctx.fillText(l, bx+pad+4, by+pad+i*lineH+10));
+
+    // Tail
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(pos.x+10, pos.y-8);
+    ctx.lineTo(pos.x+4, pos.y-2);
+    ctx.lineTo(pos.x+16, pos.y-2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Draw canvas ──
+function drawSwarm(transitioned) {
+  const w = canvas.width/2, h = canvas.height/2;
+  ctx.fillStyle = transitioned ? 'rgba(248,249,251,0.12)' : 'rgba(248,249,251,0.22)';
   ctx.fillRect(0, 0, w, h);
 
-  // Draw pheromone connections
-  ctx.lineWidth = 0.5;
+  // Pheromone connections
   for (const p of pheromones) {
-    if (p.strength < 0.2) continue;
-    const sourceAgent = agents.find(a => a.id === p.agentId);
-    if (!sourceAgent) continue;
-
-    for (const connId of p.connections) {
-      const target = pheromones.find(pp => pp.id === connId);
-      if (!target) continue;
-      const targetAgent = agents.find(a => a.id === target.agentId);
-      if (!targetAgent) continue;
-
-      const color = getPheromoneColor(p);
-      ctx.strokeStyle = color + Math.round(p.strength * 40).toString(16).padStart(2, '0');
+    if (p.strength < 0.25) continue;
+    const src = agents.find(a=>a.id===p.agentId);
+    if (!src) continue;
+    for (const cid of p.connections) {
+      const tp = pheromones.find(pp=>pp.id===cid);
+      const ta = tp && agents.find(a=>a.id===tp.agentId);
+      if (!ta) continue;
+      const col = pheromoneTypeColors[p.pheromoneType]||pheromoneTypeColors.knowledge;
+      ctx.strokeStyle = col + Math.round(p.strength*35).toString(16).padStart(2,'0');
+      ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.moveTo(sourceAgent.position.x * w / 1000, sourceAgent.position.y * h / 800);
-      ctx.lineTo(targetAgent.position.x * w / 1000, targetAgent.position.y * h / 800);
+      ctx.moveTo(src.position.x*w/1000, src.position.y*h/800);
+      ctx.lineTo(ta.position.x*w/1000, ta.position.y*h/800);
       ctx.stroke();
     }
   }
 
-  // Draw pheromone particles — color-coded by type
+  // Pheromone particles
   for (const p of pheromones) {
     if (p.strength < 0.1) continue;
-    const agent = agents.find(a => a.id === p.agentId);
-    if (!agent) continue;
-
-    const px = agent.position.x * w / 1000 + (Math.random() - 0.5) * 40;
-    const py = agent.position.y * h / 800 + (Math.random() - 0.5) * 40;
-    const color = getPheromoneColor(p);
-
+    const ag = agents.find(a=>a.id===p.agentId);
+    if (!ag) continue;
+    const px = ag.position.x*w/1000 + (Math.random()-.5)*38;
+    const py = ag.position.y*h/800 + (Math.random()-.5)*38;
+    const col = p.agentId === 'human' ? '#f43f5e' : (pheromoneTypeColors[p.pheromoneType]||pheromoneTypeColors.knowledge);
     ctx.beginPath();
-    ctx.arc(px, py, p.strength * 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = color + Math.round(p.strength * 60).toString(16).padStart(2, '0');
+    ctx.arc(px, py, p.strength*2.2, 0, Math.PI*2);
+    ctx.fillStyle = col + Math.round(p.strength*55).toString(16).padStart(2,'0');
     ctx.fill();
   }
 
-  // Draw agents
+  // Sync lines
+  if (transitioned) {
+    const synced = agents.filter(a=>a.synchronized);
+    ctx.strokeStyle = 'rgba(99,102,241,0.12)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < synced.length; i++) for (let j = i+1; j < synced.length; j++) {
+      ctx.beginPath();
+      ctx.moveTo(synced[i].position.x*w/1000, synced[i].position.y*h/800);
+      ctx.lineTo(synced[j].position.x*w/1000, synced[j].position.y*h/800);
+      ctx.stroke();
+    }
+  }
+
+  // Agents
   for (let i = 0; i < agents.length; i++) {
     const a = agents[i];
-    const x = a.position.x * w / 1000;
-    const y = a.position.y * h / 800;
-    const color = getColor(a.id, i);
-    const radius = a.synchronized ? 8 : 5;
+    const x = a.position.x*w/1000, y = a.position.y*h/800;
+    const color = getColor(a.id);
+    const r = a.synchronized ? 9 : 6;
+    const isFocused = a.id === focusedAgentId;
 
-    // Glow
+    if (isFocused) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.arc(x, y, r+8, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     if (a.synchronized) {
-      const grad = ctx.createRadialGradient(x, y, 0, x, y, 30);
-      grad.addColorStop(0, color + '40');
-      grad.addColorStop(1, color + '00');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(x, y, 30, 0, Math.PI * 2);
-      ctx.fill();
+      const g = ctx.createRadialGradient(x,y,0,x,y,28);
+      g.addColorStop(0,color+'30'); g.addColorStop(1,color+'00');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,28,0,Math.PI*2); ctx.fill();
     }
 
-    // Energy ring
-    ctx.strokeStyle = color + Math.round(a.energy * 200).toString(16).padStart(2, '0');
+    ctx.strokeStyle = color + Math.round(a.energy*180).toString(16).padStart(2,'0');
     ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 3, 0, Math.PI * 2 * a.energy);
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,r+3,0,Math.PI*2*a.energy); ctx.stroke();
 
-    // Core
     ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
 
-    // Action label (below agent name)
-    ctx.fillStyle = '#444';
-    ctx.font = '9px monospace';
-    ctx.fillText(a.name, x + radius + 5, y + 3);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.arc(x,y,r*.35,0,Math.PI*2); ctx.fill();
 
-    // Show current action
+    ctx.fillStyle = '#555'; ctx.font = '9px -apple-system,sans-serif';
+    ctx.fillText(a.name, x+r+5, y+3);
     if (a.currentAction && a.currentAction !== 'idle' && a.currentAction !== 'initializing') {
-      ctx.fillStyle = '#555';
-      ctx.font = '7px monospace';
-      const actionText = a.currentAction.length > 25 ? a.currentAction.slice(0, 25) + '..' : a.currentAction;
-      ctx.fillText(actionText, x + radius + 5, y + 13);
+      ctx.fillStyle = '#999'; ctx.font = '7px -apple-system,sans-serif';
+      const t = a.currentAction.length>24 ? a.currentAction.slice(0,24)+'..' : a.currentAction;
+      ctx.fillText(t, x+r+5, y+13);
     }
   }
 
-  // Draw sync lines between synchronized agents
-  if (transitioned) {
-    const synced = agents.filter(a => a.synchronized);
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.15)';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < synced.length; i++) {
-      for (let j = i + 1; j < synced.length; j++) {
-        const a1 = synced[i], a2 = synced[j];
-        ctx.beginPath();
-        ctx.moveTo(a1.position.x * w / 1000, a1.position.y * h / 800);
-        ctx.lineTo(a2.position.x * w / 1000, a2.position.y * h / 800);
-        ctx.stroke();
-      }
+  drawBubbles();
+}
+
+// ── Inject topic ──
+async function injectTopic() {
+  const input = document.getElementById('inject-input');
+  const topic = input.value.trim();
+  if (!topic) return;
+
+  try {
+    await fetch(API+'/api/inject', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ topic, content: `Swarm, explore this: ${topic}` })
+    });
+
+    // Add a bubble on all agents briefly
+    for (const a of agents) addBubble(a.id, `💡 ${topic}`);
+
+    input.value = '';
+    const fb = document.getElementById('inject-feedback');
+    fb.classList.add('show');
+    setTimeout(() => fb.classList.remove('show'), 2000);
+  } catch { /* noop */ }
+}
+
+document.getElementById('inject-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') injectTopic();
+});
+
+// ── Collective memory renderer ──
+function renderCollectiveMemory(m) {
+  const timeAgo  = timeSince(m.createdAt);
+  const confPct  = Math.round((m.confidence||0)*100);
+  const r        = m.report;
+
+  const contribNames = (m.contributors||[]).map(id => {
+    const ag = agents.find(a => a.id === id);
+    return ag ? ag.name : id.slice(0,8);
+  }).join(', ');
+
+  let html = `<div class="collective-card">
+    <div class="collective-header">
+      <div class="collective-title">${m.topic}</div>
+      <div class="collective-meta">
+        <span class="collective-meta-item">🕐 ${timeAgo}</span>
+        <span class="collective-meta-item">⬤ ${confPct}% confidence</span>
+        ${contribNames ? `<span class="collective-meta-item">👾 ${contribNames}</span>` : ''}
+      </div>
+    </div>`;
+
+  if (!r) {
+    // No LLM report yet — show raw synthesis as fallback
+    const lines = (m.synthesis||'').split('\n\n').filter(Boolean).slice(0,5);
+    if (lines.length > 0) {
+      html += `<div class="collective-fallback">${lines.map(l=>l.slice(0,300)).join('\n\n')}</div>`;
+    } else {
+      html += `<div class="collective-generating"><div class="generating-dot"></div>Generating report...</div>`;
+    }
+  } else {
+    if (r.overview) {
+      html += `<div class="report-block">
+        <div class="report-label overview">📋 Overview</div>
+        <div class="report-prose overview">${r.overview}</div>
+      </div>`;
+    }
+
+    if (r.keyFindings && r.keyFindings.length > 0) {
+      html += `<div class="report-block">
+        <div class="report-label findings">🔍 Key Findings</div>
+        <ul class="report-list findings">
+          ${r.keyFindings.map(f=>`<li>${f}</li>`).join('')}
+        </ul>
+      </div>`;
+    }
+
+    if (r.opinions) {
+      html += `<div class="report-block">
+        <div class="report-label opinions">💬 Our Take</div>
+        <div class="report-prose opinions">${r.opinions}</div>
+      </div>`;
+    }
+
+    if (r.improvements && r.improvements.length > 0) {
+      html += `<div class="report-block">
+        <div class="report-label improve">⚠️ What Could Be Better</div>
+        <ul class="report-list improve">
+          ${r.improvements.map(i=>`<li>${i}</li>`).join('')}
+        </ul>
+      </div>`;
+    }
+
+    if (r.verdict) {
+      html += `<div class="report-block">
+        <div class="report-label verdict">✅ Verdict</div>
+        <div class="report-prose verdict">${r.verdict}</div>
+      </div>`;
     }
   }
+
+  html += `</div>`;
+  return html;
 }
 
-function formatTokens(n) {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return String(n);
+// ── Report ──
+async function fetchReport() {
+  try {
+    const r = await fetch(API+'/api/report').then(r=>r.json());
+    renderReport(r);
+  } catch { }
 }
 
+function renderReport(report) {
+  if (!report) return;
+  const insights = report.topInsights || [];
+  let html = `<div class="report-section">
+    <div class="report-section-header">
+      <span class="report-section-title">Top Insights</span>
+      <span class="report-section-count">${insights.length}</span>
+    </div>`;
+
+  if (!insights.length) {
+    html += '<div class="empty-state"><div class="empty-state-icon">🧠</div>Agents are still forming insights...</div>';
+  } else {
+    insights.forEach(ins => {
+      const color = getColor(agents.find(a=>a.name===ins.agentName)?.id||'');
+      const confPct = Math.round((ins.confidence||0)*100);
+      html += `<div class="insight-card">
+        <div class="insight-header">
+          <span class="insight-agent-tag" style="background:${color||'#6366f1'}">${ins.agentName}</span>
+          <span class="insight-trigger">${ins.trigger||'analysis'}</span>
+          <span class="insight-confidence">${confPct}%</span>
+        </div>
+        <div class="insight-conclusion">${ins.conclusion||''}</div>
+        ${ins.reasoning?`<div class="insight-reasoning">${ins.reasoning.slice(0,280)}${ins.reasoning.length>280?'...':''}</div>`:''}
+        ${ins.suggestedActions?.length?`<div class="insight-actions">${ins.suggestedActions.slice(0,4).map(a=>`<span class="action-tag">${a}</span>`).join('')}</div>`:''}
+      </div>`;
+    });
+  }
+
+  const memories = report.collectiveMemories||[];
+  if (memories.length) {
+    html += `<div class="report-section">
+      <div class="report-section-header">
+        <span class="report-section-title">Collective Memories</span>
+        <span class="report-section-count">${memories.length}</span>
+      </div>`;
+    memories.slice(-5).reverse().forEach(m => {
+      html += `<div class="memory-card">
+        <div class="memory-topic">${m.topic}</div>
+        <div class="memory-synthesis">${(m.synthesis||'').slice(0,300)}</div>
+        <div class="memory-meta">${(m.contributors||[]).length} contributors · confidence ${(m.confidence||0).toFixed(2)}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  html += '</div>';
+  document.getElementById('report-main').innerHTML = html;
+
+  // Repos aside
+  const repos = report.reposStudied||[];
+  document.getElementById('report-repos').innerHTML = repos.length
+    ? repos.map(r=>`<div class="repo-item">
+        <div class="repo-icon">📦</div>
+        <div><div class="repo-name">${r.owner}/${r.repo}</div>
+        <div class="studied-by-tags">${(r.studiedBy||[]).map(n=>`<span class="studied-by-tag">${n}</span>`).join('')}</div></div>
+      </div>`).join('')
+    : '<div class="empty-state"><div class="empty-state-icon">📁</div>None yet</div>';
+
+  // Agent summaries aside
+  const summaries = report.agentSummaries||[];
+  document.getElementById('report-agent-summaries').innerHTML = summaries.map(s=>{
+    const color = getColor(agents.find(a=>a.name===s.name)?.id||'');
+    return `<div style="padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;background:var(--surface)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:24px;height:24px;border-radius:50%;background:${color||'#6366f1'};display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:700">${(s.name||'').replace('Neuron-','').slice(0,2)}</div>
+        <div><div style="font-weight:600;font-size:12px">${s.name}</div><div style="font-size:10.5px;color:var(--text-3)">${s.specialization} · ${s.thoughtCount} thoughts</div></div>
+      </div>
+      ${s.topConclusions?.length?`<div style="font-size:11px;color:var(--text-2);line-height:1.5;background:var(--bg);padding:6px 8px;border-radius:6px">${s.topConclusions[0].conclusion.slice(0,150)}...</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ── Track previous thoughts to detect new ones for bubbles ──
+let prevThoughtIds = new Set();
+
+// ── Main refresh ──
 async function refresh() {
   try {
-    const [stateRes, agentsRes, pheromonesRes, collectiveRes, thoughtsRes, decisionsRes] = await Promise.all([
-      fetch(API + '/api/state').then(r => r.json()),
-      fetch(API + '/api/agents').then(r => r.json()),
-      fetch(API + '/api/pheromones').then(r => r.json()),
-      fetch(API + '/api/collective').then(r => r.json()),
-      fetch(API + '/api/thoughts').then(r => r.json()).catch(() => []),
-      fetch(API + '/api/decisions').then(r => r.json()).catch(() => []),
+    const [stateRes, agentsRes, pheroRes, collectRes, thoughtsRes] = await Promise.all([
+      fetch(API+'/api/state').then(r=>r.json()),
+      fetch(API+'/api/agents').then(r=>r.json()),
+      fetch(API+'/api/pheromones').then(r=>r.json()),
+      fetch(API+'/api/collective').then(r=>r.json()),
+      fetch(API+'/api/thoughts').then(r=>r.json()).catch(()=>[]),
     ]);
 
-    agents = agentsRes;
-    pheromones = pheromonesRes;
-    thoughts = thoughtsRes;
-    decisions = decisionsRes;
+    agents = agentsRes; pheromones = pheroRes;
 
-    // Header stats
+    // Detect new thoughts → spawn chat bubbles
+    for (const t of thoughtsRes) {
+      if (!prevThoughtIds.has(t.id) && t.conclusion) {
+        addBubble(t.agentId, t.conclusion);
+        prevThoughtIds.add(t.id);
+      }
+    }
+    if (prevThoughtIds.size > 200) prevThoughtIds = new Set([...prevThoughtIds].slice(-100));
+
+    // Header
     document.getElementById('h-step').textContent = stateRes.step;
     document.getElementById('h-pheromones').textContent = stateRes.metrics.totalPheromones;
     document.getElementById('h-discoveries').textContent = stateRes.metrics.totalDiscoveries;
-    document.getElementById('h-synced').textContent =
-      `${stateRes.metrics.synchronizedCount}/${agentsRes.length}`;
-    document.getElementById('h-tokens').textContent = formatTokens(stateRes.totalTokens || 0);
-    document.getElementById('h-prs').textContent = stateRes.totalPRs || 0;
+    document.getElementById('h-synced').textContent = `${stateRes.metrics.synchronizedCount}/${agentsRes.length}`;
+    document.getElementById('h-tokens').textContent = formatTokens(stateRes.totalTokens||0);
+    document.getElementById('h-density').textContent = (stateRes.density||0).toFixed(3);
 
-    // PR burst effect
-    const currentPRs = stateRes.totalPRs || 0;
-    if (currentPRs > prevPRCount && prevPRCount > 0) {
-      const canvasArea = document.querySelector('.canvas-area');
-      const burst = document.createElement('div');
-      burst.className = 'pr-burst';
-      burst.style.left = '50%';
-      burst.style.top = '50%';
-      canvasArea.appendChild(burst);
-      setTimeout(() => burst.remove(), 1000);
-    }
-    prevPRCount = currentPRs;
-
-    // Phase transition flash
     if (stateRes.phaseTransitionOccurred && !prevTransition) {
+      document.getElementById('h-transition').style.display = 'flex';
       document.getElementById('flash').classList.add('active');
-      document.getElementById('h-transition-wrap').style.display = 'block';
-      setTimeout(() => document.getElementById('flash').classList.remove('active'), 2000);
+      setTimeout(()=>document.getElementById('flash').classList.remove('active'), 2000);
     }
     prevTransition = stateRes.phaseTransitionOccurred;
+    if (stateRes.phaseTransitionOccurred) document.getElementById('h-transition').style.display = 'flex';
 
-    // Density meter
-    const density = stateRes.density;
-    const threshold = stateRes.criticalThreshold;
+    // Density bar
+    const density = stateRes.density||0, threshold = stateRes.criticalThreshold||0.6;
     const fill = document.getElementById('density-fill');
-    fill.style.width = `${density * 100}%`;
+    fill.style.width = `${Math.min(density*100,100)}%`;
     fill.style.background = density >= threshold
-      ? 'linear-gradient(90deg, #a855f7, #ec4899)'
-      : 'linear-gradient(90deg, #1a1a3e, #4a9eff)';
-    document.getElementById('density-label').textContent =
-      `Density: ${density.toFixed(3)} / threshold: ${threshold.toFixed(2)}`;
-    document.getElementById('critical-line').style.left =
-      `calc(20px + ${threshold * 100}% * (100% - 40px) / 100%)`;
+      ? 'linear-gradient(90deg,#6366f1,#ec4899)'
+      : 'linear-gradient(90deg,#93c5fd,#6366f1)';
+    document.getElementById('density-label').textContent = `Density ${density.toFixed(3)}`;
+    document.getElementById('density-threshold-label').textContent = `Threshold ${threshold.toFixed(2)}`;
+    document.getElementById('density-marker').style.left = `${threshold*100}%`;
 
-    // Agent list — enhanced with current action + PR count
-    document.getElementById('agent-list').innerHTML = agentsRes.map((a, i) => {
-      const color = getColor(a.id, i);
-      const action = a.currentAction || 'idle';
-      const actionShort = action.length > 20 ? action.slice(0, 20) + '..' : action;
-      return `<div class="agent-item ${a.synchronized ? 'synced' : ''}">
-        <div class="agent-dot" style="background:${color}"></div>
-        <span class="agent-name">${a.name}</span>
-        <span class="agent-action" title="${action}">${actionShort}</span>
-        <span class="agent-stat">${a.discoveries}</span>
-        ${a.prsCreated > 0 ? `<span class="agent-pr-count">PR:${a.prsCreated}</span>` : ''}
+    // Agent list sidebar
+    document.getElementById('agent-list').innerHTML = agentsRes.map(a => {
+      const color = getColor(a.id);
+      const initials = (a.name||'').replace('Neuron-','').slice(0,2);
+      const action = (a.currentAction||'idle').length>22 ? a.currentAction.slice(0,22)+'..' : a.currentAction||'idle';
+      const isFocused = a.id === focusedAgentId;
+      return `<div class="agent-row ${a.synchronized?'synced':''} ${isFocused?'focused':''}" onclick="openFocus('${a.id}')">
+        <div class="agent-avatar" style="background:${color}">${initials}</div>
+        <div class="agent-info"><div class="agent-name">${a.name}</div><div class="agent-action-text">${action}</div></div>
+        <div class="agent-discoveries">${a.discoveries}</div>
       </div>`;
     }).join('');
 
-    // Collective memories
-    if (collectiveRes.length > 0) {
-      document.getElementById('collective-list').innerHTML = collectiveRes.slice(-5).reverse().map(m => `
-        <div class="memory-item">
-          <div class="memory-topic">${m.topic}</div>
-          <div class="memory-synthesis">${m.synthesis.slice(0, 200)}...</div>
-          <div class="memory-meta">${m.contributors.length} agents | confidence ${m.confidence.toFixed(2)} | ${m.attestation.slice(0, 16)}...</div>
-        </div>
-      `).join('');
-    }
-
-    // Agent Thoughts stream (replaces "Latest Discoveries")
-    if (thoughtsRes.length > 0) {
-      document.getElementById('thought-feed').innerHTML = thoughtsRes
-        .slice(0, 8)
-        .map(t => {
-          const agent = agentsRes.find(a => a.id === t.agentId);
-          const color = agent ? getColor(agent.id) : '#666';
-          const actions = (t.suggestedActions || []).slice(0, 2).join(', ');
-          return `<div class="thought-item">
-            <div class="thought-header">
-              <span class="thought-agent" style="color:${color}">${agent?.name || '?'}</span>
-              <span class="thought-confidence">${(t.confidence || 0).toFixed(2)}</span>
-            </div>
-            <div class="thought-conclusion">${(t.conclusion || '').slice(0, 120)}</div>
-            ${actions ? `<div class="thought-actions">${actions}</div>` : ''}
-          </div>`;
-        }).join('');
-    } else if (pheromonesRes.length > 0) {
-      // Fallback: show pheromone discoveries if no thoughts yet
-      document.getElementById('thought-feed').innerHTML = pheromonesRes
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 8)
-        .map(p => {
-          const agent = agentsRes.find(a => a.id === p.agentId);
-          const color = getColor(p.agentId);
-          return `<div class="thought-item">
-            <div class="thought-header">
-              <span class="thought-agent" style="color:${color}">${agent?.name || '?'}</span>
-              <span class="thought-confidence">${p.domain.split(' ').slice(0, 2).join(' ')}</span>
-            </div>
-            <div class="thought-conclusion">${p.content.slice(0, 120)}...</div>
-          </div>`;
-        }).join('');
-    }
-
-    // Decision Log (bottom panel 1)
-    if (decisionsRes.length > 0) {
-      document.getElementById('decision-log').innerHTML = decisionsRes
-        .slice(0, 12)
-        .map(d => {
-          const agent = agentsRes.find(a => a.id === d.agentId);
-          const color = agent ? getColor(agent.id) : '#666';
-          const actionType = d.action?.type || '?';
-          const status = d.status || 'pending';
-          return `<div style="font-size:0.7em;padding:3px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #0a0a12">
-            <span style="color:${color};min-width:55px">${agent?.name || '?'}</span>
-            <span style="color:#888;flex:1;margin:0 6px">${actionType}</span>
-            <span class="decision-status-${status}">${status}</span>
-          </div>`;
-        }).join('');
-    }
-
-    // GitHub Activity (bottom panel 2)
-    const reposStudied = new Set();
-    const issuesFound = [];
-    const prsCreated = [];
-    agentsRes.forEach(a => {
-      if (a.prsCreated > 0) prsCreated.push({ name: a.name, count: a.prsCreated });
-    });
-
-    // Build GitHub activity from decisions
-    const ghEntries = [];
-    decisionsRes.forEach(d => {
-      const agent = agentsRes.find(a => a.id === d.agentId);
-      const name = agent?.name || '?';
-      const action = d.action;
-      if (!action) return;
-      if (action.type === 'study_repo' && action.owner) {
-        ghEntries.push({ icon: 'S', label: `${name} studied ${action.owner}/${action.repo}`, color: '#4a9eff' });
-      } else if (action.type === 'fix_issue' && action.owner) {
-        ghEntries.push({ icon: 'F', label: `${name} fixing #${action.issueNumber} in ${action.owner}/${action.repo}`, color: '#f59e0b' });
-      } else if (action.type === 'contribute_pr' && action.owner) {
-        ghEntries.push({ icon: 'P', label: `${name} PR for ${action.owner}/${action.repo}`, color: '#10b981' });
-      }
-    });
-
-    if (ghEntries.length > 0) {
-      document.getElementById('github-activity').innerHTML = ghEntries.slice(0, 10).map(e =>
-        `<div style="font-size:0.7em;padding:2px 0;color:#666;display:flex;gap:6px;border-bottom:1px solid #0a0a12">
-          <span style="color:${e.color};font-weight:bold;min-width:12px">${e.icon}</span>
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.label}</span>
-        </div>`
-      ).join('');
-    } else {
-      // Fallback: show attestation log
-      if (pheromonesRes.length > 0) {
-        document.getElementById('github-activity').innerHTML =
-          '<div style="font-size:0.6em;color:#333;margin-bottom:6px">ATTESTATION LOG (no GitHub activity yet)</div>' +
-          pheromonesRes
-          .sort((a, b) => b.timestamp - a.timestamp)
-          .slice(0, 10)
-          .map(p => {
-            const agent = agentsRes.find(a => a.id === p.agentId);
-            const color = getColor(p.agentId);
-            return `<div style="font-size:0.7em;padding:2px 0;color:#444;display:flex;justify-content:space-between">
-              <span style="color:${color}">${agent?.name || '?'}</span>
-              <span>${p.attestation.slice(0, 20)}...</span>
-            </div>`;
-          }).join('');
-      }
-    }
-
-    // Domain coverage
-    const domains = {};
-    pheromonesRes.forEach(p => {
-      domains[p.domain] = (domains[p.domain] || 0) + 1;
-    });
-    const sorted = Object.entries(domains).sort((a, b) => b[1] - a[1]);
-    if (sorted.length > 0) {
-      const max = sorted[0][1];
-      document.getElementById('domain-coverage').innerHTML = sorted.map(([d, count]) => {
-        const pct = (count / max) * 100;
-        return `<div style="margin-bottom:4px">
-          <div style="font-size:0.7em;color:#666;margin-bottom:1px">${d}</div>
-          <div style="height:4px;background:#1a1a2e;border-radius:2px;overflow:hidden">
-            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#4a9eff,#a855f7);border-radius:2px"></div>
+    // Live thoughts
+    const items = thoughtsRes.length > 0 ? thoughtsRes : pheromones.sort((a,b)=>b.timestamp-a.timestamp);
+    if (items.length > 0) {
+      document.getElementById('thought-feed').innerHTML = items.slice(0,6).map(t => {
+        const ag = agentsRes.find(a=>a.id===t.agentId);
+        const color = getColor(t.agentId);
+        const text = t.conclusion || t.content || '';
+        return `<div class="thought-card">
+          <div class="thought-meta">
+            <span class="thought-agent-name" style="color:${color}">${ag?.name||'?'}</span>
+            ${t.confidence!=null?`<span class="confidence-badge">${Math.round(t.confidence*100)}%</span>`:''}
           </div>
+          <div class="thought-text">${text.slice(0,130)}${text.length>130?'...':''}</div>
         </div>`;
       }).join('');
     }
 
-    // Draw canvas
-    drawSwarm(agentsRes, pheromonesRes, stateRes.phaseTransitionOccurred);
-  } catch (e) {
-    // Server not ready yet
-  }
+    // Agents grid tab
+    document.getElementById('agents-grid').innerHTML = agentsRes.map(a=>{
+      const color = getColor(a.id);
+      const initials = (a.name||'').replace('Neuron-','').slice(0,2);
+      const tokenPct = Math.min((a.tokensUsed||0)/(a.tokenBudget||1)*100,100).toFixed(0);
+      return `<div class="agent-card" onclick="switchTab('live');setTimeout(()=>openFocus('${a.id}'),50)" style="cursor:pointer">
+        <div class="agent-card-header">
+          <div class="agent-card-avatar" style="background:${color}">${initials}</div>
+          <div><div class="agent-card-name">${a.name}</div>
+          <div class="agent-card-spec">${a.specialization||''} ${a.synchronized?'<span class="synced-tag">✓ Synced</span>':''}</div></div>
+        </div>
+        <div class="agent-stats-row">
+          <div class="stat-box"><div class="stat-box-val">${a.discoveries||0}</div><div class="stat-box-lbl">Found</div></div>
+          <div class="stat-box"><div class="stat-box-val">${a.thoughtCount||0}</div><div class="stat-box-lbl">Thoughts</div></div>
+          <div class="stat-box"><div class="stat-box-val">${a.absorbed||0}</div><div class="stat-box-lbl">Absorbed</div></div>
+        </div>
+        <div class="token-bar-wrap">
+          <div class="token-bar-label"><span>Token budget</span><span>${formatTokens(a.tokensUsed||0)} / ${formatTokens(a.tokenBudget||0)}</span></div>
+          <div class="token-bar-track"><div class="token-bar-fill" style="width:${tokenPct}%"></div></div>
+        </div>
+        ${a.latestThought?`<div class="latest-thought-box">${a.latestThought.slice(0,160)}${a.latestThought.length>160?'...':''}</div>`:''}
+      </div>`;
+    }).join('');
+
+    // Pheromones tab
+    document.getElementById('pheromone-list').innerHTML = pheromones.length > 0
+      ? pheromones.sort((a,b)=>b.timestamp-a.timestamp).slice(0,60).map(p=>{
+          const ag = agentsRes.find(a=>a.id===p.agentId);
+          const color = p.agentId==='human' ? '#f43f5e' : (pheromoneTypeColors[p.pheromoneType]||pheromoneTypeColors.knowledge);
+          const isHuman = p.agentId==='human';
+          return `<div class="pheromone-row ${isHuman?'human-pheromone':''}">
+            <div class="pheromone-type-dot" style="background:${color}"></div>
+            <div>
+              <div class="pheromone-content">${(p.content||'').slice(0,140)}</div>
+              <div class="pheromone-meta">${isHuman?'🧑 You':ag?.name||'?'} · ${p.domain||''} · ${timeSince(p.timestamp)}</div>
+            </div>
+            <div class="pheromone-strength">${(p.strength||0).toFixed(2)}</div>
+          </div>`;
+        }).join('')
+      : '<div class="empty-state"><div class="empty-state-icon">◎</div>No pheromones yet</div>';
+
+    // Collective tab
+    document.getElementById('collective-list').innerHTML = collectRes.length > 0
+      ? collectRes.slice(-10).reverse().map(m => renderCollectiveMemory(m)).join('')
+      : '<div class="empty-state"><div class="empty-state-icon">🌐</div>Waiting for phase transition...</div>';
+
+    // Refresh focus panel if open
+    if (focusedAgentId) renderFocusPanel();
+
+    // Draw
+    if (document.getElementById('panel-live').classList.contains('active')) {
+      drawSwarm(stateRes.phaseTransitionOccurred);
+    }
+
+    if (document.getElementById('panel-report').classList.contains('active')) fetchReport();
+  } catch { }
 }
 
-setInterval(refresh, 500);
+setInterval(refresh, 800);
 refresh();
 </script>
-
 </body>
 </html>

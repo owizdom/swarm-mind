@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import simpleGit, { SimpleGit } from "simple-git";
@@ -21,7 +21,7 @@ function ensureWorkspace(): void {
 
 function ghExec(args: string[], timeoutMs = 15000): string {
   try {
-    const result = execSync(`gh ${args.join(" ")}`, {
+    const result = execFileSync("gh", args, {
       encoding: "utf-8",
       timeout: timeoutMs,
       stdio: ["pipe", "pipe", "pipe"],
@@ -53,15 +53,11 @@ export function discoverRepos(
   options?: { language?: string; minStars?: number; limit?: number }
 ): GitHubRepo[] {
   const limit = options?.limit || 10;
-  const langFlag = options?.language ? `--language=${options.language}` : "";
-  const starsFlag = options?.minStars ? `--stars=">=${options.minStars}"` : "";
+  const args = ["search", "repos", query, `--limit=${limit}`, "--json=fullName,description,language,stargazersCount"];
+  if (options?.language) args.push(`--language=${options.language}`);
+  if (options?.minStars) args.push(`--stars=>=${options.minStars}`);
 
-  const raw = ghExec([
-    "search", "repos", `"${query}"`,
-    langFlag, starsFlag,
-    `--limit=${limit}`,
-    "--json=fullName,description,language,stargazersCount",
-  ].filter(Boolean));
+  const raw = ghExec(args);
 
   if (!raw) return [];
 
@@ -141,7 +137,7 @@ export function getActionableIssues(
   const raw = ghExec([
     "issue", "list",
     "-R", `${owner}/${repo}`,
-    "--label=good first issue,help wanted,bug",
+    "--state=open",
     `--limit=${limit}`,
     "--json=number,title,body,labels",
   ]);
